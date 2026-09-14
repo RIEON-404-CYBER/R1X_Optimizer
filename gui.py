@@ -751,37 +751,54 @@ class App(ctk.CTk):
         try:
             if core.WATCHER.running:
                 self._auto_sw.select()
-            if getattr(self, "_overlay_on", False):
+            if getattr(self, "_overlay_proc", None) is not None:
                 self._overlay_sw.select()
         except Exception:
             pass
 
     def _toggle_overlay(self):
-        if not self._overlay_sw.get():
+        import subprocess
+        if self._overlay_sw.get():
+            proc = getattr(self, "_overlay_proc", None)
+            if proc is not None and proc.poll() is None:
+                self.log("OVERLAY     | monitor already running", "info")
+                return
+            self._overlay_on = True
+            try:
+                if getattr(sys, "frozen", False):
+                    args = [sys.executable, "--overlay"]
+                else:
+                    args = [sys.executable, os.path.abspath(__file__),
+                            "--overlay"]
+                self._overlay_proc = subprocess.Popen(
+                    args, creationflags=getattr(subprocess,
+                                                "CREATE_NO_WINDOW", 0))
+                if self._overlay_proc.poll() is None:
+                    self.log("OVERLAY     | FPS monitor launched "
+                             "(drag = move, double-click = close)", "win")
+                    _beep(900, 90)
+                else:
+                    self.log("OVERLAY     | monitor exited immediately "
+                             "(code %s)" % self._overlay_proc.returncode,
+                             "error")
+                    self._overlay_sw.deselect()
+            except Exception as e:
+                self.log("OVERLAY     | launch error: %s" % e, "error")
+                self._overlay_on = False
+                try:
+                    self._overlay_sw.deselect()
+                except Exception:
+                    pass
+        else:
+            proc = getattr(self, "_overlay_proc", None)
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
             self._overlay_on = False
-            self.log("OVERLAY     | close an open overlay with right-click",
-                     "info")
-            return
-        self._overlay_on = True
-        self.log("OVERLAY     | floating FPS monitor launched", "win")
-        _beep(900, 90)
-        try:
-            import subprocess
-            if getattr(sys, "frozen", False):
-                args = [sys.executable, "--overlay"]
-            else:
-                args = [sys.executable, os.path.abspath(__file__), "--overlay"]
-            subprocess.Popen(args, creationflags=getattr(
-                subprocess, "CREATE_NO_WINDOW", 0))
-        except Exception as e:
-            self.log("OVERLAY     | error: %s" % e, "error")
-
-    def _overlay_closed(self):
-        self._overlay_on = False
-        try:
-            self.after(0, lambda: self._overlay_sw.deselect())
-        except Exception:
-            pass
+            self.log("OVERLAY     | FPS monitor closed", "info")
+            _beep(420, 60)
 
     def _toggle_auto(self):
         on = bool(self._auto_sw.get())

@@ -1614,7 +1614,11 @@ def spawn_overlay(snapshot_fn, on_close=lambda: None):
     cv = tk.Canvas(root, width=300, height=96, bg="#010307", highlightthickness=0)
     cv.pack()
 
+    _alive = {"on": True}
+
     def draw():
+        if not _alive["on"]:
+            return
         try:
             s = snapshot_fn()
             cv.delete("all")
@@ -1637,10 +1641,13 @@ def spawn_overlay(snapshot_fn, on_close=lambda: None):
                 yy += 18
             cv.create_text(14, 84, anchor="nw", fill="#5b6b8c",
                            font=("Consolas", 8),
-                           text="right-click = close")
+                           text="double-click = close")
         except Exception:
             pass
-        root.after(800, draw)
+        try:
+            root.after(800, draw)
+        except Exception:
+            _alive["on"] = False
 
     mesh = {"on": False, "x": 0, "y": 0}
 
@@ -1658,8 +1665,15 @@ def spawn_overlay(snapshot_fn, on_close=lambda: None):
         mesh["on"] = False
 
     def close(_=None):
-        on_close()
-        root.destroy()
+        _alive["on"] = False
+        try:
+            on_close()
+        except Exception:
+            pass
+        try:
+            root.destroy()
+        except Exception:
+            pass
 
     for btn in (2, 3):
         cv.bind("<Button-%d>" % btn, press)
